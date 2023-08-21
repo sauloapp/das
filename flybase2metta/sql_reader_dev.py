@@ -4,8 +4,8 @@ from pathlib import Path
 import os, shutil
 import subprocess
 from enum import Enum, auto
-from precomputed_tables import PrecomputedTables
 from table_types import *
+from precomputed_tables import PrecomputedTables
 import sqlparse
 import re
 import pandas   #saulo
@@ -25,7 +25,7 @@ OUTPUT_DIR = "/home/saulo/snet/hyperon/das/das/flybase2metta/fb_data/flybase_met
 #OUTPUT_DIR = "/mnt/HD10T/nfs_share/work/datasets/flybase_metta"
 SHOW_PROGRESS = True
 FILE_SIZE = 0
-FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has FILE_SIZE lines
+FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has  lines
 
 SCHEMA_ONLY = False
 SKIP_PRECOMPUTED_MATCH_BUILD = True
@@ -46,7 +46,7 @@ def _file_line_count(file_name):
 if SHOW_PROGRESS:
     print("Checking SQL file size...")
     #FILE_SIZE = 655024366 #_file_line_count(SQL_FILE)  # for 2023_03 release sql has 655024366 lines
-    FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has FILE_SIZE lines
+    FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has  lines
 
 class AtomTypes(str, Enum):
     CONCEPT = "Concept"
@@ -55,7 +55,7 @@ class AtomTypes(str, Enum):
     VERBATIM = "Verbatim"
     INHERITANCE = "Inheritance"
     EXECUTION = "Execution"  #mapeia infos de uma coluna para outra
-#    ALLELE_GROUP = "AlleleGroup"
+    ALLELE_GROUP = "AlleleGroup"
     GENE_GROUP = "GeneGroup"
     PATHWAY_GENE_GROUP = "PathwayGeneGroup"
     LIST = "List"
@@ -195,8 +195,6 @@ class LazyParser():
         for table in self.precomputed.all_tables:
             if SHOW_PROGRESS:
                 self._print_progress_bar(table_count, len(self.precomputed.all_tables), 50, 3, 5)
-
-            #exit(9)
             for row in table.rows:
                 #print(row)
                 '''
@@ -204,17 +202,20 @@ class LazyParser():
                 fk é para linkar precomputed com sql data...
                 tratar as listas de sinônimos
                 '''
+                # this variable is to hold this link
+                # (Inheritance "Verbatim FBgg0001715" "Verbatim ")
                 grp_inheritance_link = None
                 for key1, value1 in zip(table.header, row):
                     if key1 not in table.mapped_fields:
                         print(f"::::::::::::::::key1: {key1} not in table.mapped_fields. Value of " + str(value1))
                         continue
-
-                    print(f"key1: {key1} in table.mapped_fields. Value of " + str(value1))
+                    if value1 == "":
+                        print("--------------------------> Lambda found in colun " + key1 + ".  Nothing to do!")
+                        continue
+                    #print(f"key1: {key1} in table.mapped_fields. Value of " + str(value1))
                     # access mapping from precomputed table column to sql
                     sql_table1, sql_field1 = table.mapping[key1]
-                    #sql_table1, sql_field1, field_type, pk_fk = table.mapping[key1]
-                    print("1111 -- " + sql_table1 + " 1 --  " + sql_field1)
+                    #print("1111 -- " + sql_table1 + " 1 --  " + sql_field1)
                     if table._is_list_column(key1): # no necessary if using lists but..
                         if isinstance(table, Dmel_unique_protein_isoforms_table):
                             separator = ','
@@ -225,6 +226,9 @@ class LazyParser():
                         value1_list = self._values_list(value1)
                     node1 = self._add_value_node(short_name(sql_table1), self._get_type(sql_table1, sql_field1), value1)
                     for key2, value2 in zip(table.header, row):
+                        if value2 == "":
+                            print("--------------------------> Lambda found in column " + key2 + ".  Nothing to do!")
+                            continue
                         if key2 != key1:
                             sql_table2, sql_field2 = table.mapping[key2] if key2 in table.mapping else (None, None)
                             # constructs a group of genes hierarchy
@@ -266,6 +270,9 @@ class LazyParser():
                                     schema = self._add_node(AtomTypes.SCHEMA, _compose_name([_clear_table_name(table.name), key2]))
                                     self._add_execution(schema, node1, node2)
                 for key1, value1 in zip(table.header, row):
+                    if value1 == "":
+                        print("--------------------------> Lambda found in column " + key1 + ".  Nothing to do!")
+                        continue
                     # List of values: _values_list returns a list of values (that could contain only one value) if the value
                     # parameter is a concatenation of symbols/names/etc which are synonyms (in general). FB uses
                     # pipes ('|') to separate symbols. One exception is the precomputed table
@@ -280,6 +287,9 @@ class LazyParser():
                     else:
                         value1_list = self._values_list(value1)
                     for key2, value2 in zip(table.header, row):
+                        if value2 == "":
+                            print("--------------------------> Lambda found in column " + key2 + ".  Nothing to do!")
+                            continue
                         if key2 != key1:
                             if table._is_list_column(key2):
                                 if isinstance(table, Dmel_unique_protein_isoforms_table):
@@ -301,7 +311,6 @@ class LazyParser():
                                     node1 = self._add_node(AtomTypes.VERBATIM, l_value1)
                                     node2 = self._add_node(AtomTypes.VERBATIM, l_value2)
                                     self._add_execution(schema, node1, node2)
-
             table_count += 1
             if SHOW_PROGRESS:
                 self._print_progress_bar(table_count, len(self.precomputed.all_tables), 50, 3, 5)
@@ -425,8 +434,6 @@ class LazyParser():
                 self.current_link_list.append(link)
             #self.current_link_list.append(f"({AtomTypes.INHERITANCE} {node1} {node2})")
         self.expression_chunk_count += 1
-
-
 
     #def _add_evaluation(self, predicate, node1, node2):
     #    # metta

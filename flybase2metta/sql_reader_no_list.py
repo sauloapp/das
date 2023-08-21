@@ -5,7 +5,6 @@ import os, shutil
 import subprocess
 from enum import Enum, auto
 from precomputed_tables import PrecomputedTables
-from table_types import *
 import sqlparse
 import re
 import pandas   #saulo
@@ -25,7 +24,7 @@ OUTPUT_DIR = "/home/saulo/snet/hyperon/das/das/flybase2metta/fb_data/flybase_met
 #OUTPUT_DIR = "/mnt/HD10T/nfs_share/work/datasets/flybase_metta"
 SHOW_PROGRESS = True
 FILE_SIZE = 0
-FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has FILE_SIZE lines
+FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has  lines
 
 SCHEMA_ONLY = False
 SKIP_PRECOMPUTED_MATCH_BUILD = True
@@ -46,7 +45,7 @@ def _file_line_count(file_name):
 if SHOW_PROGRESS:
     print("Checking SQL file size...")
     #FILE_SIZE = 655024366 #_file_line_count(SQL_FILE)  # for 2023_03 release sql has 655024366 lines
-    FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has FILE_SIZE lines
+    FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has  lines
 
 class AtomTypes(str, Enum):
     CONCEPT = "Concept"
@@ -55,7 +54,7 @@ class AtomTypes(str, Enum):
     VERBATIM = "Verbatim"
     INHERITANCE = "Inheritance"
     EXECUTION = "Execution"  #mapeia infos de uma coluna para outra
-#    ALLELE_GROUP = "AlleleGroup"
+    ALLELE_GROUP = "AlleleGroup"
     GENE_GROUP = "GeneGroup"
     PATHWAY_GENE_GROUP = "PathwayGeneGroup"
     LIST = "List"
@@ -184,10 +183,6 @@ class LazyParser():
         self.current_output_file = open(fname, "w")
         self._emit_file_header()
 
-
-    def  _values_list(self, value, separator='|'):
-        return value.split(separator)
-
     def _emit_precomputed_tables(self):
     #def _emit_precomputed_tables(self, output_file):
          # aqui...
@@ -204,104 +199,40 @@ class LazyParser():
                 fk é para linkar precomputed com sql data...
                 tratar as listas de sinônimos
                 '''
-                grp_inheritance_link = None
                 for key1, value1 in zip(table.header, row):
                     if key1 not in table.mapped_fields:
-                        print(f"::::::::::::::::key1: {key1} not in table.mapped_fields. Value of " + str(value1))
+                        print(f"key1: {key1} not in table.mapped_fields. Value of " + str(value1))
                         continue
-
                     print(f"key1: {key1} in table.mapped_fields. Value of " + str(value1))
                     # access mapping from precomputed table column to sql
                     sql_table1, sql_field1 = table.mapping[key1]
                     #sql_table1, sql_field1, field_type, pk_fk = table.mapping[key1]
-                    print("1111 -- " + sql_table1 + " 1 --  " + sql_field1)
-                    if table._is_list_column(key1): # no necessary if using lists but..
-                        if isinstance(table, Dmel_unique_protein_isoforms_table):
-                            separator = ','
-                            value1_list = self._values_list(value1, separator=separator)
-                        else:
-                            value1_list = self._values_list(value1)
-                    else:
-                        value1_list = self._values_list(value1)
-                    node1 = self._add_value_node(short_name(sql_table1), self._get_type(sql_table1, sql_field1), value1)
-                    for key2, value2 in zip(table.header, row):
-                        if key2 != key1:
-                            sql_table2, sql_field2 = table.mapping[key2] if key2 in table.mapping else (None, None)
-                            # constructs a group of genes hierarchy
-                            if key1 == "FB_group_id" and key2 == "Parent_FB_group_id":
-                                #node1 = self._add_value_node(short_name(sql_table1), self._get_type(sql_table1, sql_field1), value1)
-                                node2 = self._add_value_node(short_name(sql_table2),
-                                                             self._get_type(sql_table2, sql_field2), value2)
-                                if grp_inheritance_link == None:
-                                    grp_inheritance_link = f"({AtomTypes.INHERITANCE} {node1} {node2})"
-                                    self._add_inheritance(node1, node2)
-                                continue
-                            # List of values: _values_list returns a list of values (that could contain only one value) if the value
-                            # parameter is a concatenation of symbols/names/etc which are synonyms (in general). FB uses
-                            # pipes ('|') to separate symbols. One exception is the precomputed table
-                            # [Dmel_unique_protein_isoforms_fb_table (only releases 2023_0(2|3|4) were verified]
-                            # If value1 or value2 represent a list of values then they are strings like "val1|val2|val3|..."
-                            sql_table2, sql_field2 = table.mapping[key2] if key2 in table.mapping else (None, None)
-                            if table._is_list_column(key2): # no necessary if using lists but...
-                                if isinstance(table, Dmel_unique_protein_isoforms_table):
-                                    separator = ','
-                                    value2_list = self._values_list(value2, separator=separator)
-                                else:
-                                    value2_list = self._values_list(value2)
-                            # print("2:", node2)
-                            else:
-                                value2_list = self._values_list(value2)
-                            for l_value1 in value1_list:  # most commonly these two lists will hold only one element
-                                #node1 = None
-                                for l_value2 in value2_list:
-                                    # I need to check this:
-                                    # this test is not totally correct: consider the case (I DON'T KNOW IF THIS HAPPENS
-                                    # IN FLYBASE DATA...) in which value1 and value2 repreent genes and key1 and/or
-                                    # key2 a type of "regulatory" relation. So it's possible that a gene regulates itself...
-                                    # But this is not the general case --> post-processing (?)
-                                    #if value1 != l_value2 and value2 != l_value1:
-                                    #if node1 == None:
-                                    #    node1 = self._add_value_node(short_name(sql_table1), self._get_type(sql_table1, sql_field1), l_value1)
-                                    node2 = self._add_value_node(short_name(sql_table2), self._get_type(sql_table2, sql_field2), l_value2)
-                                    schema = self._add_node(AtomTypes.SCHEMA, _compose_name([_clear_table_name(table.name), key2]))
-                                    self._add_execution(schema, node1, node2)
-                for key1, value1 in zip(table.header, row):
-                    # List of values: _values_list returns a list of values (that could contain only one value) if the value
-                    # parameter is a concatenation of symbols/names/etc which are synonyms (in general). FB uses
-                    # pipes ('|') to separate symbols. One exception is the precomputed table
-                    # [Dmel_unique_protein_isoforms_fb_table (only releases 2023_0(2|3|4) were verified]
-                    # If value1 or value2, if they represent a list, are strings like "val1|val2|val3|..."
-                    if table._is_list_column(key1): # no necessary if using lists but...
-                        if isinstance(table, Dmel_unique_protein_isoforms_table):
-                            separator = ','
-                            value1_list = self._values_list(value1, separator=separator)
-                        else:
-                            value1_list = self._values_list(value1)
-                    else:
-                        value1_list = self._values_list(value1)
-                    for key2, value2 in zip(table.header, row):
-                        if key2 != key1:
-                            if table._is_list_column(key2):
-                                if isinstance(table, Dmel_unique_protein_isoforms_table):
-                                    separator = ','
-                                    value2_list = self._values_list(value2, separator=separator)
-                                else:
-                                    value2_list = self._values_list(value2)
-                            else:
-                                value2_list = self._values_list(value2)
-                            for l_value1 in value1_list:  # most commonly these two lists will hold only one element
-                                for l_value2 in value2_list:
-                                    # I need to check this:
-                                    # this test is not totally correct: consider the case (I DON'T KNOW IF THIS HAPPENS
-                                    # IN FLYBASE DATA...) in which value1 and value2 repreent genes and key1 and/or
-                                    # key2 a type of "regulatory" relation. So it's possible that a gene regulates itself...
-                                    # But this is not the general case --> post-processing (?)
-                                    #if value1 != l_value2 and value2 != l_value1:
-                                    schema = self._add_node(AtomTypes.SCHEMA, _compose_name([_clear_table_name(table.name), key2]))
-                                    node1 = self._add_node(AtomTypes.VERBATIM, l_value1)
-                                    node2 = self._add_node(AtomTypes.VERBATIM, l_value2)
-                                    self._add_execution(schema, node1, node2)
+                    print("1111 -- " + sql_table1 + " 1 --  " + sql_field1)# + " --  " + field_type + " --  " + pk_fk)
 
+                    node1 = self._add_value_node(short_name(sql_table1), self._get_type(sql_table1, sql_field1), value1)
+                    #print("1:", node1)
+                    for key2, value2 in zip(table.header, row):
+                        if key2 != key1:
+                            field_type2 = None
+                            pk_fk2 = None
+                            try:
+                                #sql_table2, sql_field2, field_type2, pk_fk2  = table.mapping[key2] if key2 in table.mapping else (None, None, None, None)
+                                sql_table2, sql_field2 = table.mapping[key2] if key2 in table.mapping else (None, None)
+                            except ValueError as ve:
+                                print("2222 --  " + sql_table2 + " --  " + sql_field2)#  + " --  " + field_type + " --  " + pk_fk)
+                            #if field_type2 == None and pk_fk2 == None:
+                             #   sql_table2, sql_field2 = table.mapping[key2] if key2 in table.mapping else (None, None)
+                            node2 = self._add_value_node(short_name(sql_table2), self._get_type(sql_table2, sql_field2), value2)
+                            #print("2:", node2)
+                            schema = self._add_node(AtomTypes.SCHEMA, _compose_name([_clear_table_name(table.name), key2]))
+                            self._add_execution(schema, node1, node2)
+                for key1, value1 in zip(table.header, row):
+                    for key2, value2 in zip(table.header, row):
+                        if key2 != key1:
+                            schema = self._add_node(AtomTypes.SCHEMA, _compose_name([_clear_table_name(table.name), key2]))
+                            node1 = self._add_node(AtomTypes.VERBATIM, value1)
+                            node2 = self._add_node(AtomTypes.VERBATIM, value2)
+                            self._add_execution(schema, node1, node2)
             table_count += 1
             if SHOW_PROGRESS:
                 self._print_progress_bar(table_count, len(self.precomputed.all_tables), 50, 3, 5)
@@ -417,16 +348,21 @@ class LazyParser():
 
     def _add_inheritance(self, node1, node2):
         # metta
-        #print(f"add_inheritance {node1} {node2}")
+        # print(f"add_inheritance {node1} {node2}")
         if node1 and node2:
             # saulo
             link = f"({AtomTypes.INHERITANCE} {node1} {node2})"
             if link not in self.current_link_list:
                 self.current_link_list.append(link)
-            #self.current_link_list.append(f"({AtomTypes.INHERITANCE} {node1} {node2})")
+            # self.current_link_list.append(f"({AtomTypes.INHERITANCE} {node1} {node2})")
         self.expression_chunk_count += 1
 
-
+    def _add_GROUP_inheritance(self, node1, node2):
+        # metta
+        #print(f"add_inheritance {node1} {node2}")
+        if node1 and node2:
+            self.current_link_list.append(f"({AtomTypes.INHERITANCE} {node1} {node2})")
+        self.expression_chunk_count += 1
 
     #def _add_evaluation(self, predicate, node1, node2):
     #    # metta
@@ -441,6 +377,36 @@ class LazyParser():
         if schema and node1 and node2:
             self.current_link_list.append(f"({AtomTypes.EXECUTION} {schema} {node1} {node2})")
         self.expression_chunk_count += 1
+
+
+    def _add_list_node(self, table_short_name, field_type, value, build_only=False):
+        if value == "\\N":      #  null for PostgreSQL
+            return None
+        if field_type == "pk":
+            assert table_short_name is not None
+            if build_only:
+                return self._add_node(table_short_name, value)
+            else:
+                return self._add_node(table_short_name, value)
+        elif field_type == "boolean":
+            if build_only:
+                return self._add_node(AtomTypes.CONCEPT, "True" if value.lower() == "t" else "False")
+            else:
+                return self._add_node(AtomTypes.CONCEPT, "True" if value.lower() == "t" else "False")
+        elif field_type in ["bigint", "integer", "smallint", "double precision"]:
+            if build_only:
+                return self._add_node(AtomTypes.NUMBER, value)
+            else:
+                return self._add_node(AtomTypes.NUMBER, value)
+        elif "character" in field_type or field_type in ["date", "text"]:
+            if build_only:
+                return self._add_node(AtomTypes.VERBATIM, value)
+            else:
+                return self._add_node(AtomTypes.VERBATIM, value)
+        elif field_type in ["jsonb"]:
+            return None
+        else:
+            assert False
 
 
     def _add_value_node(self, table_short_name, field_type, value, build_only=False):
@@ -583,8 +549,10 @@ class LazyParser():
             table = line[2] if line[2] != "ONLY" else line[3]
             line = second_line.split()
             field = line[-1][1:-2]
-            # saulo: only "public" tables are available for querying (2023_04)
-            if table.startswith("public."):
+            if not table.startswith("public."):
+                print("TTTTAble:  " + str(table))
+                print("FFField: " + str(field))
+            else:
                 assert not self.table_schema[table]['primary_key']
                 assert field in self.table_schema[table]['fields']
                 self.table_schema[table]['primary_key'] = field
@@ -599,8 +567,10 @@ class LazyParser():
             table = line[2] if line[2] != "ONLY" else line[3]
             line = second_line.split()
             field = line[5][1:-1]
-            # saulo: only "public" tables are available for querying (2023_04)
-            if table.startswith("public."):
+            if not table.startswith("public."):
+                print("TTTTAble:  " + str(table))
+                print("FFField: " + str(field))
+            else:
                 reference = line[7].split("(")
                 referenced_table = reference[0]
                 referenced_field = reference[1].split(")")[0]
