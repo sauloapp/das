@@ -1,0 +1,28 @@
+ncRNA_genes	primaryId	symbol	taxonId	soTermId	gene_geneId	gene_symbol	gene_locusTag
+ncRNA_genes_synonyms	symbol1	symbol2
+ncRNA_genes_cross_references	symbol1	symbol2
+ncRNA_genes_related_sequences	primaryId	sequenceId	relationship
+ncRNA_genes_gene_synonyms	symbol1	symbol2
+ncRNA_genes_publications	primaryId	publication
+ncRNA_genes_genome_locations	primaryId	assembly	gca_accession	INSDC_accession	chromosome	strand	startPosition	endPosition
+fbgn_fbtr_fbpp_expanded	organism	gene_type	gene_ID	gene_symbol	gene_fullname	annotation_ID	transcript_type	transcript_ID	transcript_symbol	polypeptide_ID	polypeptide_symbol
+dmel_human_orthologs_disease	Dmel_gene_ID	Dmel_gene_symbol	Human_gene_HGNC_ID	Human_gene_OMIM_ID	Human_gene_symbol	DIOPT_score	OMIM_Phenotype_IDs[name]
+Dmel_enzyme_data	gene_group_id	gene_group_name	gene_group_GO_id(s)	gene_group_EC_number(s)	gene_id	gene_symbol	gene_name	gene_EC_number(s)
+gene_groups_HGNC	FB_group_id	FB_group_symbol	FB_group_name	HGNC_family_ID
+best_gene_summary	FBgn_ID	Gene_Symbol	Summary_Source	Summary
+gene_map_table	organism_abbreviation	current_symbol	primary_FBid	recombination_loc	cytogenetic_loc	sequence_loc
+pathway_group_data	FB_group_id	FB_group_symbol	FB_group_name	Parent_FB_group_id	Parent_FB_group_symbol	Group_member_FB_gene_id	Group_member_FB_gene_symbol
+genotype_phenotype_data	genotype_symbols	genotype_FBids	phenotype_name	phenotype_id	qualifier_names	qualifier_ids	reference
+gene_group_data	FB_group_id	FB_group_symbol	FB_group_name	Parent_FB_group_id	Parent_FB_group_symbol	Group_member_FB_gene_id	Group_member_FB_gene_symbol
+dmel_unique_protein_isoforms	FBgn	FB_gene_symbol	representative_protein	identical_protein(s)
+dmel_gene_sequence_ontology_annotations	gene_primary_id	gene_symbol	so_term_id
+scRNA-Seq_gene_expression	Pub_ID	Pub_miniref	Clustering_Analysis_ID	Clustering_Analysis_Name	Source_Tissue_Sex	Source_Tissue_Stage	Source_Tissue_Anatomy	Cluster_ID	Cluster_Name	Cluster_Cell_Type_ID	Cluster_Cell_Type_Name	Gene_ID	Gene_Symbol	Mean_Expression	Spread
+gene_genetic_interactions	Starting_gene(s)_symbol	Starting_gene(s)_FBgn	Interacting_gene(s)_symbol	Interacting_gene(s)_FBgn	Interaction_type	Publication_FBrf
+gene_rpkm_report	Release_ID	FBgn#	GeneSymbol	Parent_library_FBlc#	Parent_library_name	RNASource_FBlc#	RNASource_name	RPKM_value	Bin_value	Unique_exon_base_count	Total_exon_base_count	Count_used
+physical_interactions_mitab	ID(s) Interactor A	ID(s) Interactor B	Alt ID(s) Interactor A	Alt ID(s) Interactor B	Alias(es) Interactor A	Alias(es) Interactor B	Interaction Detection Method(s)	Publication 1st Author(s)	Publication ID(s)	Taxid Interactor A	Taxid Interactor B	Interaction Type(s)	Source Database(s)	Interaction Identifier(s)	Confidence Value(s)	Expansion Method(s)	Biological Role(s) Interactor A	Biological Role(s) Interactor B	Experimental Role(s) Interactor A	Experimental Role(s) Interactor B	Type(s) Interactor A	Type(s) Interactor B	Xref(s) Interactor A	Xref(s) Interactor B	Interaction Xref(s)	Annotation(s) Interactor A	Annotation(s) Interactor B	Interaction Annotation(s)	Host Organism(s)	Interaction Parameters	Creation Date	Update Date	Checksum Interactor A	Checksum Interactor B	Interaction Checksum	Negative	Feature(s) Interactor A	Feature(s) Interactor B	Stoichiometry Interactor A	Stoichiometry Interactor B	Identification Method(s) Participant A	Identification Method(s) Participant B
+fb_synonym	primary_FBid	organism_abbreviation	current_symbol	current_fullname	fullname_synonym(s)	symbol_synonym(s)
+allele_genetic_interactions	allele_symbol	allele_FBal#	interaction	FBrf#
+fbrf_pmid_pmcid_doi	FBrf	PMID	PMCID	DOI	pub_type	miniref	pmid_added
+disease_model_annotations	FBgn ID	Gene symbol	HGNC ID	DO qualifier	DO ID	Allele used in model (FBal ID)	Allele used in model (symbol)	Based on orthology with (HGNC ID)	Based on orthology with (symbol)	Evidence/interacting alleles	Reference (FBrf ID)
+fbal_to_fbgn	AlleleID	AlleleSymbol	GeneID	GeneSymbol
+gene_association	DB	DB_Object_ID	DB_Object_Symbol	Qualifier	GO ID	DB:Reference	Evidence	With (or) From	DB_Object_Name	DB_Object_Synonym	DB_Object_Type	Taxon	Date	Assigned_by

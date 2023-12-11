@@ -1,7 +1,7 @@
 #! /bin/bash
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <release tag> <target dir>"
-    echo "   <release tag> something like 2022_06"
+    echo "   <release tag> something like 2023_05"
     echo "   <target dir> a directory where output will be put (all its contents WILL BE DELETED before the script execution)"
     exit 1
 fi
@@ -14,6 +14,7 @@ function validate_url(){
   fi
 }
 
+
 declare -a StringArray=(\
 "fbgn_fbtr_fbpp_expanded_*.tsv.gz" \
 "physical_interactions_mitab_fb_*.tsv.gz" \
@@ -23,12 +24,23 @@ declare -a StringArray=(\
 "gene_association.fb.gz" \
 "gene_genetic_interactions_*.tsv.gz" \
 "allele_genetic_interactions_*.tsv.gz" \
-"allele_phenotypic_data_*.tsv.gz" \
+"genotype_phenotype_data_fb_*.tsv.gz" \
 "disease_model_annotations_fb_*.tsv.gz" \
 "dmel_human_orthologs_disease_fb_*.tsv.gz" \
-"fbrf_pmid_pmcid_doi_fb_*.tsv.gz")
+"fbrf_pmid_pmcid_doi_fb_*.tsv.gz" \
+"gene_rpkm_report_fb_*.tsv.gz" \
+"scRNA-Seq_gene_expression_fb_*.tsv.gz" \
+"pathway_group_data_fb_*.tsv.gz" \
+"gene_group_data_fb_*.tsv.gz" \
+"gene_groups_HGNC_fb_*.tsv.gz" \
+"dmel_unique_protein_isoforms_fb_*.tsv.gz" \
+"Dmel_enzyme_data_fb_*.tsv.gz" \
+"best_gene_summary*.tsv.gz" \
+"fb_synonym_*.tsv.gz" \
+"fbal_to_fbgn_fb_*.tsv.gz")
 
-rm -rf $2
+
+#rm -rf $2
 mkdir -p $2/$1/precomputed
 wget --no-parent -A .gz -r http://ftp.flybase.org/releases/FB$1/precomputed_files/
 
@@ -38,7 +50,7 @@ done
 
 rm -rf ftp.flybase.org
 
-URL="http://ftp.flybase.net/releases/FB$1/psql/FB$1.sql.gz"
+#URL="http://ftp.flybase.net/releases/FB$1/psql/FB$1.sql.gz"
 if validate_url $URL; then
     wget $URL
     mv FB$1.sql.gz $2/$1

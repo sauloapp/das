@@ -8,16 +8,7 @@ import pandas
 import table_types
 
 
-
-
-
 class PrecomputedTables:
-    '''
-    2023 August: changed to handle more information from "mapping(_2023_04).txt" file:
-    1. Data type column
-    2. PK (Primary Key) or FK (Foreign Key) columns
-
-    '''
     def __init__(self, dir_name, release_id):
         '''
         release_id is in format yyyy_nn  where:
@@ -28,7 +19,7 @@ class PrecomputedTables:
         :param dir_name:
         :param release:
         '''
-        print(dir_name)
+        #print(dir_name)
         self.all_tables = []
         self.unmapped_tables = {}
         self.mapped_tables = {}
@@ -71,12 +62,12 @@ class PrecomputedTables:
                 self._process_tsv_fb(file_name, start_symbol='!', fb_column_names=fb_column_names)
             else:
                 self._process_tsv_fb(file_name, start_symbol='#')
-            print(table.name)
-            print(str(table.header))
-            print(str(table.rows))
+            #print(table.name)
+            #print(str(table.header))
+            #print(str(table.rows))
             table._preprocess()
-            print("\n\nDF:\n"+str(table.header))
-            print(str(table.rows))
+            #print("\n\nDF:\n"+str(table.header))
+            #print(str(table.rows))
             #print("\n\nDF:\n"+str(table.dataframe))
 #        exit(9)
 
@@ -84,9 +75,7 @@ class PrecomputedTables:
             print(f"{dir_name}/mapping_{release_id}.txt")
             self.preloaded_mapping = True
             mappings = {}
-            '''
-            adicionar colunas extras aqui...
-            '''
+
             with open(f"{dir_name}/mapping_{release_id}.txt", "r") as f:
                 for line in f:
                     line = line.strip("\n").split("\t")
@@ -103,10 +92,10 @@ class PrecomputedTables:
             finished = []
             for key, table in self.unmapped_tables.items():
                 if key not in mappings:     # to not process unmapped files right now
-                    print(f"Table {key} not in mappings...")
+                    print(f"Table {key} not in mappings........................................................")
                     continue
-                print(f"Table --> {key} <-- in mappings...")
-                print(str(mappings[key]))
+                #print(f"Table --> {key} <-- in mappings...")
+                print("PreComputed MAPPINGS: " + key + ":::  "+str(mappings[key]))
                 for column, referenced_table, referenced_colum in mappings[key]:    # separates mapped from non-mapped columns (fields)
                 #for column, referenced_table, referenced_colum, data_type, key_data in mappings[key]:
                     table.unmapped_fields.remove(column)
@@ -115,7 +104,7 @@ class PrecomputedTables:
                     #table.mapping[column] = tuple([referenced_table, referenced_column, data_type, key_data])
                 if table.all_fields_mapped():
                     finished.append(key)
-                #print(str(table.mapping))
+            #exit(9)
             for key in finished:    # move tables with all columns mapped to the mapped_tables structure
                 print(f"Table {key} totally in mappings...")
                 self.mapped_tables[key] = self.unmapped_tables.pop(key)
@@ -206,11 +195,11 @@ class PrecomputedTables:
         known_keys = [
             "primaryId",
             "symbol",
-            "sequence",
+            #"sequence",
             "taxonId",
             "soTermId",
             "gene",
-            "symbolSynonyms",       # symbol synonyms are a list: 1, 2, 3,...
+            "symbolSynonyms",       # symbol synonyms are a list: syn 1, syn 2, syn 3,...
             "publications",
             "genomeLocations",
             "url",
@@ -220,7 +209,7 @@ class PrecomputedTables:
         main_table_header = [
             "primaryId",
             "symbol",
-            "sequence",
+            #"sequence",
             "taxonId",
             "soTermId",
             "gene_geneId",
@@ -250,21 +239,26 @@ class PrecomputedTables:
         ]
         genome_locations_table_rows = []
         for row in json_dict["data"]:
+            if "sequence" in row:           # SAULO: SEQUENCE DATA ARE EXCLUDED
+                del row["sequence"]
             for key in row:
                 assert key in known_keys, f"Invalid key: {key}"
                     
             #fbid = row["primaryId"].split(":")[1]
             fbid = row["primaryId"]
             symbol = row["symbol"]
-            sequence = row["sequence"]
+            #sequence = row["sequence"]
             taxonid = row["taxonId"]
             sotermid = row["soTermId"]
             gene_geneid = row["gene"]["geneId"]
             gene_symbol = row["gene"]["symbol"]
-            gene_name = row["gene"]["name"]
+            #gene_name = row["gene"]["name"]
             gene_locustag = row["gene"]["locusTag"]
+            #main_table_rows.append([
+            #    fbid, symbol, sequence, taxonid, sotermid,
+            #    gene_geneid, gene_symbol, gene_locustag])
             main_table_rows.append([
-                fbid, symbol, sequence, taxonid, sotermid, 
+                fbid, symbol, taxonid, sotermid,
                 gene_geneid, gene_symbol, gene_locustag])
             if "symbolSynonyms" in row:
                 for synonym in row["symbolSynonyms"]:
@@ -308,7 +302,8 @@ class PrecomputedTables:
             ("ncRNA_genes_genome_locations", genome_locations_table_header, genome_locations_table_rows)
         ]
         for table_name, header, rows in table_list:
-            table = table_types.Table(table_name)
+            #table = table_types.Table(table_name)
+            table = table_types.instantiate_table(table_name)
             table.set_header(header)
             for row in rows:
                 table.add_row(row)

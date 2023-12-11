@@ -1,8 +1,57 @@
 from datetime import date
+from enum import Enum, auto
 import pandas
+import json
 import re
+from datetime import datetime
+#from sql_reader import AtomTypes
+
+
+class AtomTypes(str, Enum):
+    BIOLOGICAL_PROCESS = "BiologicalProcess"
+    CELLTYPE = "Cell"
+    CELLULAR_COMPONENT = "CellularComponent"
+    CHEBI = "Chebi"
+    CHEBI_ONTOLOGY = "ChebiOntology"
+    CONCEPT = "Concept"
+    DISEASE_ONTOLOGY = "DiseaseOntology"
+    ECO_ONTOLOGY = "EcoOntology"
+    ENZYME = "Enzyme"
+    ENZYME_ONTOLOGY = "EnzymeOntology"
+    EVALUATION = "Evaluation"
+    EXECUTION = "Execution"
+    FB_ANATOMY_ONTOLOGY = "FbAnatomyOntology"
+    FB_CONTROLLED_VOCABULARY_ONTOLOGY = "FbControlledVocabularyOntology"
+    FB_DEVELOPMENT_ONTOLOGY = "FbDevelopmentOntology"
+    INHERITANCE = "Inheritance"
+    LIST = "List"
+    MOLECULAR_FUNCTION = "MolecularFunction"
+    MOLECULAR_INTERACTION_ONTOLOGY = "MolecularInteractionOntology"
+    NUMBER = "Number"
+    PREDICATE = "Predicate"
+    SCHEMA = "Schema"  # p execution link
+    SEQUENCE_ONTOLOGY = "SequenceOntology"
+    UBERON = "Uberon"
+    VERBATIM = "Verbatim"
+    CVTERM = "cvterm"
+    DATABASE = "db"
+    DBXREF = "feature"
+    FEATURELOC = "featureloc"
+    FEATUREPROP = "featureprop"
+    FEATURE_SYNONYM = "feature_synonym"
+    GROUP = "grp"
+    GROUP_SYNONYM = "grp_synonym"
+    LIBRARY = "library"
+    ORGANISM = "organism"
+    PUB = "pub"
+    PUBPROP = "pubprop"
+    SYNONYM = "synonym"
 
 SKIP_FULL_TABLE_COVERAGE_CHECK = True
+
+# saulo: GO dictionary for creating correct GO nodes type
+with open("dict_data/go-namespace.json", "r") as ns:
+    go_plus_dict = json.load(ns)
 
 class Table:
 
@@ -12,15 +61,16 @@ class Table:
         #self.dataframe = None
         self.values = {}
         self.name = name
-        print("Table {} created at {}".format(name,date.ctime(date.today())))
+        print("Table {} created at {}".format(name, str(datetime.now())))
         self.covered_by = {}
         self.mapped_fields = set()
         self.unmapped_fields = set()
         self.mapping = {}
-        print("\nTable::::CONSTRUCTOR:::::::::INSTANTIATIING "+name)
+        #print("\nTable::::CONSTRUCTOR:::::::::INSTANTIATIING "+name)
         # Flybase ids ("uniquenames"): FBxxDDDDDDD  x E [a-z], D E [0-9]
         #self.flybase_id_re = re.compile("^(\S+:)?(FB[a-zA-Z]{2}[0-9]{5,10})$")
         self.flybase_id_re = re.compile("^(\S+:)?(FB[a-z]{2}[0-9]{5,10})$")
+
 
     # saulo
     def _dataframe_from_header_rows(self):
@@ -35,19 +85,21 @@ class Table:
     def _is_list_column(self, column):
         return False
 
-    def _is_hierarchy_column(self, column):
+    def _is_ontology_column(self, column):
         return False
 
-    def _hierarchy_node_type(self, term_id):
-        pass
+    def _ontology_node_type(self, term_id):
+        return None #
 
     def set_header(self, header):
         self.header = [h.strip() for h in header]
+        print(self.header)
         for key in self.header:
             assert key
             self.values[key] = set()
             self.covered_by[key] = {}
             self.unmapped_fields.add(key)
+            #print("table:set_header_key: "+key)
         assert len(self.unmapped_fields) == len(self.header)
 
 
@@ -61,7 +113,6 @@ class Table:
 
     def add_row(self, pre_row):
         row = [self.process_row_value(value) for value in pre_row]
-        print(str(len(self.header)) + " --> row: " + str(len(row)))
         assert len(self.header) == len(row), f"header = {self.header} row = {row}"
         self.rows.append(row)
         for key, value in zip(self.header, row):
@@ -77,11 +128,19 @@ class Table:
 
 
     def get_relevant_sql_tables(self):
-        return set([sql_table for sql_table, _ in self.mapping.values()])
+        return set([sql_table for sql_table, _ in self.mapping.values()]
+                      + ["public.grp_synonym", "public.feature_synonym"])
 
 
     def check_field_value(self, sql_table, sql_field, value):
+        # saulo 2023/09/03
+        if sql_table == None or sql_field == None or value == None:
+            print(f"table {str(sql_table)}, column {str(sql_field)}, value {value}")
         for key, values in self.values.items():
+            #saulo 2023/09/03
+            if key == None or  values == None or value == None:
+                print(f"column {str(key)}, values {str(values)}, value {value}")
+                continue
             if key in self.unmapped_fields and value in values:
                 tag = tuple([key, value])
                 sql_tag = tuple([sql_table, sql_field])
@@ -91,6 +150,7 @@ class Table:
                         self.unmapped_fields.remove(key)
                         self.mapped_fields.add(key)
                         self.mapping[key] = sql_tag
+
 
 
 
@@ -143,7 +203,7 @@ class Dmel_enzyme_data_table(Table):
         '''
         From "2.2.-.-" to "2.2", "3.-.-.-" to "3." "5.1.2.4"  to "EC 5.1.2.4", for example
         :param ec_number:
-        :return:
+        :return: string in correct ExplorEnz format.
         '''
         parts = ec_number.split('.')
         non_dash_parts = [part for part in parts if part != '-']
@@ -166,6 +226,8 @@ class Dmel_enzyme_data_table(Table):
         df["gene_EC_number(s)"] = df["gene_EC_number(s)"].apply(lambda x: self._process_piped_string(x) if x else x)
 
         df = remove_empty_columns(df)
+        # these columns are already represented in the ontologies
+        df = df.drop(["gene_group_GO_name(s)", "gene_group_EC_name(s)", "gene_EC_name(s)"], axis=1)
         self.header = list(df.columns)
         self.rows = df.values.tolist()
         #print(df)
@@ -178,12 +240,23 @@ class Dmel_enzyme_data_table(Table):
             return True
         return False
 
+    def _is_ontology_column(self, column):
+        return column in ['gene_group_GO_id(s)', 'gene_group_EC_number(s)', 'gene_EC_number(s)']
+
+    def _ontology_node_type(self, term_id):
+        if term_id.startswith('GO'):        # Gene Ontology ID
+            go_namespace = go_plus_dict[term_id]
+            #print(go_namespace)
+            return go_namespace
+        elif len(term_id) >= 7:
+            return AtomTypes.ENZYME
+        else:
+            return AtomTypes.ENZYME_ONTOLOGY
 
 ########################################################################################################################
 class Fbrf_pmid_pmcid_doi_table(Table):
 
     def __init__(self, name):
-        print("CONSTRUCTOR:::::::::INSTANTIATIING " + name)
         super().__init__(name)
 
     def _add_prefix(self, pmid_number):
@@ -205,6 +278,7 @@ class Fbrf_pmid_pmcid_doi_table(Table):
 ########################################################################################################################
 class Gene_association_table(Table):
 
+#remove Aspect column after linking GO
     def __init__(self, name):
         print("CONSTRUCTOR:::::::::INSTANTIATIING " + name)
         super().__init__(name)
@@ -216,6 +290,7 @@ class Gene_association_table(Table):
         df = self._dataframe_from_header_rows()
         df["DB:Reference"] = df["DB:Reference"].apply(lambda x: self._get_FB_reference(x) if x else x)
 
+        df = df.drop(["Aspect"], axis=1)
         df = remove_empty_columns(df)
         self.header = list(df.columns)
         self.rows = df.values.tolist()
@@ -225,6 +300,14 @@ class Gene_association_table(Table):
         if column == "DB_Object_Synonym":
             return True
         return False
+
+    def _is_ontology_column(self, column):
+        return column in ['GO ID']
+
+    def _ontology_node_type(self, term_id):
+        go_namespace = go_plus_dict[term_id]
+        #print(go_namespace)
+        return go_namespace
 
 ########################################################################################################################
 
@@ -250,24 +333,48 @@ class Fb_synonym_table(Table):
 class Genotype_phenotype_data_table(Table):
 
     def __init__(self, name):
-        print("CONSTRUCTOR:::::::::INSTANTIATIING " + name)
         super().__init__(name)
 
     def _preprocess(self):
         return
 
     def _is_list_column(self, column):
-        if column == "qualifier_ids":
+        if column in ["qualifier_ids", "qualifier_names", "genotype_FBids", "genotype_symbols"]:
             return True
         return False
 
+    '''
+    Split column value in a list of values [allele (FBal#) or "transposable element insertion" (FBti#)]
+    in which the first element is the very column value (the entire string given by genotypes parameter).
+    '''
+
+    def _columns_list(self, genotypes):
+        split_parts = re.split(r'[ /+]', genotypes)
+        col_list = [genotypes] + [part for part in split_parts if part]
+        #print("List of alleles::::::::======> " + str(col_list))
+        return col_list
+
+    def _is_ontology_column(self, column):
+        return column in ['phenotype_id', 'genotype_FBids', "qualifier_ids"]
+
+    def _ontology_node_type(self, term_id):
+        if 'FBbt:' in term_id:
+            return AtomTypes.FB_ANATOMY_ONTOLOGY
+        if 'FBdv:' in term_id:
+            return AtomTypes.FB_DEVELOPMENT_ONTOLOGY
+        if 'FBcv:' in term_id:
+            return AtomTypes.FB_CONTROLLED_VOCABULARY_ONTOLOGY
+        if 'GO:' in term_id:
+            go_namespace = go_plus_dict[term_id]
+            #print(go_namespace)
+            return go_namespace
+        return None
 
 ########################################################################################################################
 
 class Physical_interactions_mitab_table(Table):
 
     def __init__(self, name):
-        print("CONSTRUCTOR:::::::::INSTANTIATIING " + name)
         super().__init__(name)
 
     def _remove_flybase_str(self, fbgn_string):
@@ -343,6 +450,22 @@ class Physical_interactions_mitab_table(Table):
         self.rows = df.values.tolist()
 
 
+    def _is_ontology_column(self, column):
+        mi_columns = [
+            "Interaction Detection Method(s)",
+            "Interaction Type(s)",
+            "Source Database(s)",
+            "Experimental Role(s) Interactor A",
+            "Experimental Role(s) Interactor B",
+            "Type(s) Interactor A",
+            "Type(s) Interactor B"
+        ]
+        return column in mi_columns
+
+
+    def _ontology_node_type(self, term_id):
+        return AtomTypes.MOLECULAR_INTERACTION_ONTOLOGY
+
 ########################################################################################################################
 
 class Pathway_group_data_table(Table):
@@ -394,7 +517,20 @@ class Disease_model_annotations_table(Table):
         super().__init__(name)
 
     def _preprocess(self):
-        return
+        df = self._dataframe_from_header_rows()
+
+        df = df.drop(["DO term"], axis=1) # this column is in the ontologies data as "DiseaseOntology"
+        df = remove_empty_columns(df)
+        self.header = list(df.columns)
+        self.rows = df.values.tolist()
+        # print(df)
+
+    def _is_ontology_column(self, column):
+        return column in ['DO ID']
+
+    def _ontology_node_type(self, term_id):
+        return AtomTypes.DISEASE_ONTOLOGY
+
 
 
 ########################################################################################################################
@@ -420,12 +556,98 @@ class Dmel_unique_protein_isoforms_table(Table):
         return False
 
 ########################################################################################################################
+
+class Dmel_gene_sequence_ontology_annotations_table(Table):
+
+    def __init__(self, name):
+        super().__init__(name)
+
+    def _preprocess(self):
+        df = self._dataframe_from_header_rows()
+        df = df.drop(["so_term_name"], axis=1)
+        df = remove_empty_columns(df)
+        self.header = list(df.columns)
+        self.rows = df.values.tolist()
+        # print(df)
+
+    def _is_ontology_column(self, column):
+        return column in ['so_term_id']
+
+    def _ontology_node_type(self, term_id):
+        return AtomTypes.SEQUENCE_ONTOLOGY
+
 ########################################################################################################################
+
+class Dmel_human_orthologs_disease_table(Table):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def _preprocess(self):
+        df = self._dataframe_from_header_rows()
+        df = df.drop(["OMIM_Phenotype_IDs"], axis=1)
+        df = remove_empty_columns(df)
+        self.header = list(df.columns)
+        self.rows = df.values.tolist()
+
+########################################################################################################################
+
+class ScRNA_Seq_gene_expression_table(Table):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def _preprocess(self):
+        df = self._dataframe_from_header_rows()
+        #num_unique_values = df['uniquename'].nunique()
+        #print("Número de valores únicos na coluna 'uniquename':", num_unique_values)
+
+        #df = df.drop(["Cluster_Cell_Type_Name"], axis=1)
+        df = remove_empty_columns(df)
+        self.header = list(df.columns)
+        self.rows = df.values.tolist()
+
+    def _is_ontology_column(self, column):
+        return column in ['Cluster_Cell_Type_ID', 'Cluster_Cell_Type_Name']
+
+    def _ontology_node_type(self, term):
+        return AtomTypes.FB_ANATOMY_ONTOLOGY
+
+
+########################################################################################################################
+
+class NcRNA_genes_main_table(Table):
+
+    def __init__(self, name):
+        super().__init__(name)
+
+    '''
+    def _preprocess(self):
+        df = self._dataframe_from_header_rows()
+        df = remove_empty_columns(df)
+        self.header = list(df.columns)
+        self.rows = df.values.tolist()
+        print(df)
+    '''
+
+    def _is_ontology_column(self, column):
+        return column in ["soTermId"]
+
+    def _ontology_node_type(self, term_id):
+        return AtomTypes.SEQUENCE_ONTOLOGY
+
+
+
+########################################################################################################################
+########################################################################################################################
+
 
 
 def instantiate_table(data_file_name):
     if "Dmel_enzyme_data_fb" in data_file_name:
         return Dmel_enzyme_data_table(data_file_name)
+    elif "dmel_gene_sequence_ontology_annotations_fb" in data_file_name:
+        return Dmel_gene_sequence_ontology_annotations_table(data_file_name)
+    elif "dmel_human_orthologs_disease_fb" in data_file_name:
+        return Dmel_human_orthologs_disease_table(data_file_name)
     elif "dmel_unique_protein_isoforms_fb" in data_file_name:
         return Dmel_unique_protein_isoforms_table(data_file_name)
     elif "disease_model_annotations_fb" in data_file_name:
@@ -450,15 +672,23 @@ def instantiate_table(data_file_name):
         return Pathway_group_data_table(data_file_name)
     elif "physical_interactions_mitab_fb" in data_file_name:
         return Physical_interactions_mitab_table(data_file_name)
+    elif "scRNA-Seq_gene_expression_fb" in data_file_name:
+        return ScRNA_Seq_gene_expression_table(data_file_name)
+    elif "ncRNA_genes" == data_file_name:
+        return NcRNA_genes_main_table(data_file_name)
+    elif data_file_name in ["ncRNA_genes_synonyms", "ncRNA_genes_cross_references",
+                            "ncRNA_genes_related_sequences", "ncRNA_genes_gene_synonyms",
+                            "ncRNA_genes_publications", "ncRNA_genes_genome_locations"]:
+        #print(f"J------------------------SON table: No preprocessing for  table {data_file_name}...")
+        return Table(data_file_name)
     else:
         print(f"No preprocessing for  table {data_file_name}...")
         return Table(data_file_name)
 
-
 def remove_empty_columns(df):
     # Print the names of empty columns
     empty_columns = [column for column in df.columns if df[column].dropna().empty]
-    data_columns = [column for column in df.columns if not df[column].dropna().empty]
+    #data_columns = [column for column in df.columns if not df[column].dropna().empty]
     df = df.drop(empty_columns, axis=1)
 
     return df

@@ -4,28 +4,31 @@ from pathlib import Path
 import os, shutil
 import subprocess
 from enum import Enum, auto
-from precomputed_tables import PrecomputedTables
 from table_types import *
+from precomputed_tables import PrecomputedTables
 import sqlparse
 import re
-import pandas   #saulo
-
 from datetime import datetime
+
 EXPRESSIONS_PER_CHUNK = 150000000
+
+
 SQL_FILE = "/home/saulo/snet/hyperon/das/das/flybase2metta/fb_data/2023_04/FB2023_04.sql"
-#SQL_FILE = "/home/saulo/snet/hyperon/das/das/flybase2metta/fb_data/2023_03/FB2023_03.sql"
-#SQL_FILE = "/opt/das/data/flybase/2023_02/FB2023_02.sql"
-#SQL_FILE = "/mnt/HD10T/nfs_share/work/datasets/flybase/auto_download/2023_02/FB2023_02.sql"
-#PRECOMPUTED_DIR = None
-PRECOMPUTED_DIR = "/home/saulo/snet/hyperon/das/das/flybase2metta/fb_data/2023_04/precomputed_toys"
-#PRECOMPUTED_DIR = "/opt/das/data/flybase/2023_02/precomputed"
-#PRECOMPUTED_DIR = "/mnt/HD10T/nfs_share/work/datasets/flybase/auto_download/2023_02/precomputed"
+#SQL_FILE = "/mnt/hdd_2/saulo/snet/hyperon/das/data/flybase/input/2023_04/FB2023_04.sql"
+
+PRECOMPUTED_DIR = "/home/saulo/snet/hyperon/das/das/flybase2metta/fb_data/2023_04/precomputed"
+#PRECOMPUTED_DIR = "/mnt/hdd_2/saulo/snet/hyperon/das/data/flybase/input/2023_04/precomputed"
+#PRECOMPUTED_DIR = "/mnt/hdd_2/saulo/snet/hyperon/das/data/flybase/input/2023_04/precomputed_toys"
+
 OUTPUT_DIR = "/home/saulo/snet/hyperon/das/das/flybase2metta/fb_data/flybase_metta"
-#OUTPUT_DIR = "/opt/das/data/flybase_metta"
-#OUTPUT_DIR = "/mnt/HD10T/nfs_share/work/datasets/flybase_metta"
+#OUTPUT_DIR = "/mnt/hdd_2/saulo/snet/hyperon/das/data/flybase/output/2023_04/metta"
+#OUTPUT_DIR = "/mnt/hdd_2/saulo/snet/hyperon/das/data/flybase/output/2023_04/metta_toys"
+
 SHOW_PROGRESS = True
-FILE_SIZE = 0
-FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has FILE_SIZE lines
+
+#FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has  lines
+#FILE_SIZE = _file_line_count(SQL_FILE)  # for 2023_04 release sql has  lines
+FILE_SIZE = 659729808   # _file_line_count(SQL_FILE)  # for 2023_05 release sql has those number of lines
 
 SCHEMA_ONLY = False
 SKIP_PRECOMPUTED_MATCH_BUILD = True
@@ -35,30 +38,56 @@ SKIP_SQL_JOIN = False
 SKIP_FKEY_FOLLOWING = SKIP_SQL_JOIN or False
 
 
-
-# Added by Saulo (2023/08/08)
-CODING_NO_SQL_STUFF = False
-
 def _file_line_count(file_name):
     output = subprocess.run(["wc", "-l", file_name], stdout=subprocess.PIPE)
     return int(output.stdout.split()[0])
 
+
 if SHOW_PROGRESS:
     print("Checking SQL file size...")
-    #FILE_SIZE = 655024366 #_file_line_count(SQL_FILE)  # for 2023_03 release sql has 655024366 lines
-    FILE_SIZE = 657572301  # _file_line_count(SQL_FILE)  # for 2023_04 release sql has FILE_SIZE lines
+
+
 
 class AtomTypes(str, Enum):
+    BIOLOGICAL_PROCESS = "BiologicalProcess"
+    CELLTYPE = "Cell"
+    CELLULAR_COMPONENT = "CellularComponent"
+    CHEBI = "Chebi"
+    CHEBI_ONTOLOGY = "ChebiOntology"
     CONCEPT = "Concept"
-    SCHEMA = "Schema"       #p execution link
-    NUMBER = "Number"
-    VERBATIM = "Verbatim"
+    DISEASE_ONTOLOGY = "DiseaseOntology"
+    ECO_ONTOLOGY = "EcoOntology"
+    ENZYME = "Enzyme"
+    ENZYME_ONTOLOGY = "EnzymeOntology"
+    EVALUATION = "Evaluation"
+    EXECUTION = "Execution"
+    FB_ANATOMY_ONTOLOGY = "FbAnatomyOntology"
+    FB_CONTROLLED_VOCABULARY_ONTOLOGY = "FbControlledVocabularyOntology"
+    FB_DEVELOPMENT_ONTOLOGY = "FbDevelopmentOntology"
     INHERITANCE = "Inheritance"
-    EXECUTION = "Execution"  #mapeia infos de uma coluna para outra
-#    ALLELE_GROUP = "AlleleGroup"
-    GENE_GROUP = "GeneGroup"
-    PATHWAY_GENE_GROUP = "PathwayGeneGroup"
     LIST = "List"
+    MOLECULAR_FUNCTION = "MolecularFunction"
+    MOLECULAR_INTERACTION_ONTOLOGY = "MolecularInteractionOntology"
+    NUMBER = "Number"
+    PREDICATE = "Predicate"
+    SCHEMA = "Schema"  # p execution link
+    SEQUENCE_ONTOLOGY = "SequenceOntology"
+    UBERON = "Uberon"
+    VERBATIM = "Verbatim"
+    CVTERM = "cvterm"
+    DATABASE = "db"
+    DBXREF = "feature"
+    FEATURELOC = "featureloc"
+    FEATUREPROP = "featureprop"
+    FEATURE_SYNONYM = "feature_synonym"
+    GROUP = "grp"
+    GROUP_SYNONYM = "grp_synonym"
+    LIBRARY = "library"
+    ORGANISM = "organism"
+    PUB = "pub"
+    PUBPROP = "pubprop"
+    SYNONYM = "synonym"
+
 
 # Types that need different formatting: see _build_node()
 TYPED_NAME = [AtomTypes.CONCEPT, AtomTypes.SCHEMA]
@@ -72,38 +101,47 @@ COPY_PREFIX = "COPY "
 COPY_SUFFIX = "\."
 
 
-
 # remove  "fb_2023_04.tsv", for instance.
 
 def _clear_table_name(file_name):
     if ".tsv" in file_name:
         return re.sub(r"_fb_\d{4}_\d\d\.tsv", "", file_name)
     else:
-        return re.sub(r".fb", "", file_name)    # added by saulo to handle gene_association.fb table file
+        return re.sub(r".fb", "", file_name)  # added by saulo to handle gene_association.fb table file
+
 
 class State(int, Enum):
     WAIT_KNOWN_COMMAND = auto()
     READING_CREATE_TABLE = auto()
     READING_COPY = auto()
 
+
 def non_mapped_column(column):
-    non_mapped_columns = ["md5checksum", "Confidence Value(s)", "Expansion Method(s)"]
+    # saulo
+    # flybase db columns to not retrieve data from:
+    # "residues" (public.residues), (public.featureloc) holds biological sequences
+    non_mapped_columns = ["md5checksum", "Confidence Value(s)", "Expansion Method(s)",
+                          "residues", "residue_info"]
     return column.startswith("time") or "timestamp" in column or (column in non_mapped_columns)
 
+
 def filter_field(line):
-    return  \
-        "timestamp" in line or \
-        "CONSTRAINT" in line
+    return \
+            "timestamp" in line or \
+            "CONSTRAINT" in line
+
 
 def _compose_name(str_list):
     return "_".join(str_list).replace(" ", "_")
 
+# removes "public"
 def short_name(long_table_name):
     return long_table_name.split(".")[1] if long_table_name is not None else None
 
+
 class LazyParser():
 
-    def __init__(self, sql_file_name, precomputed = None):
+    def __init__(self, sql_file_name, precomputed=None):
         self.sql_file_name = sql_file_name
         self.table_schema = {}
         self.current_table = None
@@ -145,9 +183,9 @@ class LazyParser():
         previous = int(length * (iteration - 1) // total)
         if iteration == 1 or filled_length > previous or iteration >= total:
             percent = ("{0:.0f}").format(100 * (iteration / float(total)))
-            fill='█'
+            fill = '█'
             bar = fill * filled_length + '-' * (length - filled_length)
-            print(f'\r STEP {step}/{max_step} Progress: |{bar}| {percent}% complete ({iteration}/{total})', end = '\r')
+            print(f'\r STEP {step}/{max_step} Progress: |{bar}| {percent}% complete ({iteration}/{total})', end='\r')
             if iteration >= total:
                 print()
 
@@ -172,9 +210,10 @@ class LazyParser():
         self.errors = True
 
     def _emit_file_header(self):
-        #metta
+        # metta
         for t in AtomTypes:
             self.current_output_file.write(f"(: {t.value} Type)\n")
+        self.current_output_file.flush()
 
     def _open_new_output_file(self):
         if self.current_output_file_number > 1:
@@ -184,111 +223,173 @@ class LazyParser():
         self.current_output_file = open(fname, "w")
         self._emit_file_header()
 
-
-    def  _values_list(self, value, separator='|'):
+    def _list_values(self, value, separator='|'):
         return value.split(separator)
 
     def _emit_precomputed_tables(self):
-    #def _emit_precomputed_tables(self, output_file):
-         # aqui...
+        # def _emit_precomputed_tables(self, output_file):
+        # aqui...
         table_count = 0
+        processed_rows = 0
         for table in self.precomputed.all_tables:
             if SHOW_PROGRESS:
                 self._print_progress_bar(table_count, len(self.precomputed.all_tables), 50, 3, 5)
-
-            #exit(9)
             for row in table.rows:
-                #print(row)
-                '''
-                precomputed -->  sql_table1
-                fk é para linkar precomputed com sql data...
-                tratar as listas de sinônimos
-                '''
-                grp_inheritance_link = None
-                for key1, value1 in zip(table.header, row):
+                # print(row)
+                for key1, value1 in zip(table.header, row):  # handle mapped columns of precomputed tables
                     if key1 not in table.mapped_fields:
-                        print(f"::::::::::::::::key1: {key1} not in table.mapped_fields. Value of " + str(value1))
+                        # print(f"::::::::::::::::key1: {key1} not in table.mapped_fields. Value of " + str(value1))
                         continue
-
-                    print(f"key1: {key1} in table.mapped_fields. Value of " + str(value1))
+                    if value1 == "":
+                        # print("--------------------------> Lambda found in colun " + key1 + ".  Nothing to do!")
+                        continue
+                    # print(f"key1: {key1} in table.mapped_fields. Value of " + str(value1))
                     # access mapping from precomputed table column to sql
-                    sql_table1, sql_field1 = table.mapping[key1]
-                    #sql_table1, sql_field1, field_type, pk_fk = table.mapping[key1]
-                    print("1111 -- " + sql_table1 + " 1 --  " + sql_field1)
-                    if table._is_list_column(key1): # no necessary if using lists but..
+                    # print("1111 -- " + sql_table1 + " 1 --  " + sql_field1)
+                    if table._is_list_column(key1):  # no necessary if using lists but..
                         if isinstance(table, Dmel_unique_protein_isoforms_table):
-                            separator = ','
-                            value1_list = self._values_list(value1, separator=separator)
+                            value1_list = self._list_values(value1, separator=',')
+                        # this is to create a list with phenotype symbols plus each allele/
+                        # transposable element insertion (transposon) that compose the phenotype
+                        elif isinstance(table, Genotype_phenotype_data_table):
+                            #print("Geno: ------------------------------------key1----------------> " + key1 + "(" + value1)
+                            # list of ontologies' ids
+                            if key1 == "genotype_FBids" or key1 == "genotype_symbols":
+                                value1_list = table._columns_list(value1)
+                                #print("GENO_IDs/symbs:values1  "+str(value1_list))
+                            else:
+                                value1_list = self._list_values(value1)
                         else:
-                            value1_list = self._values_list(value1)
+                            value1_list = self._list_values(value1)
                     else:
-                        value1_list = self._values_list(value1)
-                    node1 = self._add_value_node(short_name(sql_table1), self._get_type(sql_table1, sql_field1), value1)
+                        value1_list = self._list_values(value1)
                     for key2, value2 in zip(table.header, row):
+                        if value2 == "":
+                            # print("--------------------------> Lambda found in column " + key2 + ".  Nothing to do!")
+                            continue
                         if key2 != key1:
+                            sql_table1, sql_field1 = table.mapping[key1]
                             sql_table2, sql_field2 = table.mapping[key2] if key2 in table.mapping else (None, None)
-                            # constructs a group of genes hierarchy
+                            # constructs a group of genes hierarchy: only group tables have these column names
                             if key1 == "FB_group_id" and key2 == "Parent_FB_group_id":
-                                #node1 = self._add_value_node(short_name(sql_table1), self._get_type(sql_table1, sql_field1), value1)
+                                node1 = self._add_value_node(short_name(sql_table1),
+                                                             self._get_type(sql_table1, sql_field1), value1)
                                 node2 = self._add_value_node(short_name(sql_table2),
                                                              self._get_type(sql_table2, sql_field2), value2)
-                                if grp_inheritance_link == None:
-                                    grp_inheritance_link = f"({AtomTypes.INHERITANCE} {node1} {node2})"
-                                    self._add_inheritance(node1, node2)
+                                self._add_inheritance(node1, node2)
+                                #self._add_inheritance(f'"{value1}"', f'"{value2}"')
                                 continue
                             # List of values: _values_list returns a list of values (that could contain only one value) if the value
                             # parameter is a concatenation of symbols/names/etc which are synonyms (in general). FB uses
                             # pipes ('|') to separate symbols. One exception is the precomputed table
                             # [Dmel_unique_protein_isoforms_fb_table (only releases 2023_0(2|3|4) were verified]
                             # If value1 or value2 represent a list of values then they are strings like "val1|val2|val3|..."
-                            sql_table2, sql_field2 = table.mapping[key2] if key2 in table.mapping else (None, None)
-                            if table._is_list_column(key2): # no necessary if using lists but...
+                            # sql_table2, sql_field2 = table.mapping[key2] if key2 in table.mapping else (None, None)
+                            if table._is_list_column(key2):  # not needed if using lists but...
                                 if isinstance(table, Dmel_unique_protein_isoforms_table):
-                                    separator = ','
-                                    value2_list = self._values_list(value2, separator=separator)
+                                    value2_list = self._list_values(value2, separator=',')
+                                # this is to create a list with phenotype symbols plus each allele/
+                                # transposable element insertion (transposon)
+                                elif isinstance(table, Genotype_phenotype_data_table):
+                                    #print("Geno: --------------------------key2--------------------------> " + key2 + "(" + value2)
+                                    # THIS WOULD BE SOLVED AFTER...
+                                    # this list can be built from 4 ontologies. It is handled as linked to non-mapped columns only which includes "qualifier_ids" nodes
+                                    #if key2 == "qualifier_names":
+                                     #   print("Geno qualifier: ----------------------------------------------------> " + key2 + "(" + value2 + " --key1:  "+ key1)
+                                      #  continue
+                                    if key2 == "genotype_FBids" or key2 == "genotype_symbols":
+                                        value2_list = table._columns_list(value2)  # IN FACT, every table should have this method to simplify this code...
+                                        #print("GENO_IDs:values2  " + str(value2_list))
+                                    else:
+                                        value2_list = self._list_values(value2)
                                 else:
-                                    value2_list = self._values_list(value2)
+                                    value2_list = self._list_values(value2)
                             # print("2:", node2)
                             else:
-                                value2_list = self._values_list(value2)
+                                value2_list = self._list_values(value2)
                             for l_value1 in value1_list:  # most commonly these two lists will hold only one element
-                                #node1 = None
+                                # to link ontology nodes
+                                if table._is_ontology_column(key1):
+                                    node_type = table._ontology_node_type(l_value1)
+                                    if node_type != None:
+                                        node1 = self._add_node(node_type, l_value1)
+                                    else:
+                                        node1 = self._add_value_node(short_name(sql_table1),
+                                                                     self._get_type(sql_table1, sql_field1), l_value1)
+                                else:
+                                    node1 = self._add_value_node(short_name(sql_table1),
+                                                                 self._get_type(sql_table1, sql_field1), l_value1)
                                 for l_value2 in value2_list:
                                     # I need to check this:
                                     # this test is not totally correct: consider the case (I DON'T KNOW IF THIS HAPPENS
                                     # IN FLYBASE DATA...) in which value1 and value2 repreent genes and key1 and/or
                                     # key2 a type of "regulatory" relation. So it's possible that a gene regulates itself...
                                     # But this is not the general case --> post-processing (?)
-                                    #if value1 != l_value2 and value2 != l_value1:
-                                    #if node1 == None:
+                                    # if value1 != l_value2 and value2 != l_value1:
+                                    # if node1 == None:
                                     #    node1 = self._add_value_node(short_name(sql_table1), self._get_type(sql_table1, sql_field1), l_value1)
-                                    node2 = self._add_value_node(short_name(sql_table2), self._get_type(sql_table2, sql_field2), l_value2)
+                                    #print(f"sql table1: {sql_table1}, sql field1: {sql_field1}. Value:::::::::{l_value1}")
+                                    #print(f"sql table222222: {sql_table2}, sql field22222: {sql_field2}. Value:::::::::{l_value2}")
+                                    # to link ontology nodes
+                                    if table._is_ontology_column(key2):
+                                        node_type = table._ontology_node_type(l_value2)
+                                        if node_type != None:
+                                            node2 = self._add_node(node_type, l_value2)
+                                        else:
+                                            node2 = self._add_value_node(short_name(sql_table2),
+                                                                         self._get_type(sql_table2, sql_field2),
+                                                                         l_value2)
+                                    else:
+                                        node2 = self._add_value_node(short_name(sql_table2), self._get_type(sql_table2, sql_field2), l_value2)
                                     schema = self._add_node(AtomTypes.SCHEMA, _compose_name([_clear_table_name(table.name), key2]))
                                     self._add_execution(schema, node1, node2)
+
+                # saulo non-mapped columns linked here
                 for key1, value1 in zip(table.header, row):
+                    if value1 == "":
+                        # print("--------------------------> Lambda found in column " + key1 + ".  Nothing to do!")
+                        continue
                     # List of values: _values_list returns a list of values (that could contain only one value) if the value
                     # parameter is a concatenation of symbols/names/etc which are synonyms (in general). FB uses
                     # pipes ('|') to separate symbols. One exception is the precomputed table
-                    # [Dmel_unique_protein_isoforms_fb_table (only releases 2023_0(2|3|4) were verified]
+                    # Dmel_unique_protein_isoforms_fb_table (only releases 2023_0(2|3|4) were verified) that uses comma
+                    # (',') to separate symbols
                     # If value1 or value2, if they represent a list, are strings like "val1|val2|val3|..."
-                    if table._is_list_column(key1): # no necessary if using lists but...
+                    if table._is_list_column(key1):  # no necessary if using lists but..
                         if isinstance(table, Dmel_unique_protein_isoforms_table):
-                            separator = ','
-                            value1_list = self._values_list(value1, separator=separator)
+                            value1_list = self._list_values(value1, separator=',')
+                        # this is to create a list with phenotype symbols plus each allele/
+                        # transposable element insertion (transposon) that compose the phenotype
+                        elif isinstance(table, Genotype_phenotype_data_table):
+                            #print("Geno: ----------------------------------------------------> " + key1 + "(" + value1)
+                            if key1 == "genotype_FBids" or key1 == "genotype_symbols":
+                                value1_list = table._columns_list(value1)
+                            else:
+                                value1_list = self._list_values(value1)
                         else:
-                            value1_list = self._values_list(value1)
+                            value1_list = self._list_values(value1)
                     else:
-                        value1_list = self._values_list(value1)
+                        value1_list = self._list_values(value1)
                     for key2, value2 in zip(table.header, row):
+                        if value2 == "":
+                            # print("--------------------------> Lambda found in column " + key2 + ".  Nothing to do!")
+                            continue
                         if key2 != key1:
                             if table._is_list_column(key2):
                                 if isinstance(table, Dmel_unique_protein_isoforms_table):
-                                    separator = ','
-                                    value2_list = self._values_list(value2, separator=separator)
+                                    value2_list = self._list_values(value2, separator=',')
+                                # this is to create a list with phenotype symbols plus each allele/
+                                # transposable element insertion (transposon) that compose the phenotype
+                                elif isinstance(table, Genotype_phenotype_data_table):
+                                    #print("Geno: ------------------------------------> " + key2 + "(" + value2)
+                                    if key2 == "genotype_FBids" or key2 == "genotype_symbols":
+                                        value2_list = table._columns_list(value2)
+                                    else:
+                                        value2_list = self._list_values(value2)
                                 else:
-                                    value2_list = self._values_list(value2)
+                                    value2_list = self._list_values(value2)
                             else:
-                                value2_list = self._values_list(value2)
+                                value2_list = self._list_values(value2)
                             for l_value1 in value1_list:  # most commonly these two lists will hold only one element
                                 for l_value2 in value2_list:
                                     # I need to check this:
@@ -296,15 +397,36 @@ class LazyParser():
                                     # IN FLYBASE DATA...) in which value1 and value2 repreent genes and key1 and/or
                                     # key2 a type of "regulatory" relation. So it's possible that a gene regulates itself...
                                     # But this is not the general case --> post-processing (?)
-                                    #if value1 != l_value2 and value2 != l_value1:
-                                    schema = self._add_node(AtomTypes.SCHEMA, _compose_name([_clear_table_name(table.name), key2]))
-                                    node1 = self._add_node(AtomTypes.VERBATIM, l_value1)
-                                    node2 = self._add_node(AtomTypes.VERBATIM, l_value2)
+                                    # if value1 != l_value2 and value2 != l_value1:
+                                    schema = self._add_node(AtomTypes.SCHEMA,
+                                                            _compose_name([_clear_table_name(table.name), key2]))
+                                    # se a coluna key1 ou key2 for de hierarquia então chama _add_node com o tipo apropriado...
+                                    if table._is_ontology_column(key1):
+                                        node_type = table._ontology_node_type(l_value1)
+                                        if node_type != None:
+                                            node1 = self._add_node(node_type, l_value1)
+                                        else:
+                                            node1 = self._add_node(AtomTypes.VERBATIM, l_value1)
+                                    else:
+                                        node1 = self._add_node(AtomTypes.VERBATIM, l_value1)
+                                    if table._is_ontology_column(key2):
+                                        node_type = table._ontology_node_type(l_value2)
+                                        if node_type != None:
+                                            node2 = self._add_node(node_type, l_value2)
+                                        else:
+                                            node2 = self._add_node(AtomTypes.VERBATIM, l_value2)
+                                    else:
+                                        node2 = self._add_node(AtomTypes.VERBATIM, l_value2)
                                     self._add_execution(schema, node1, node2)
+
 
             table_count += 1
             if SHOW_PROGRESS:
                 self._print_progress_bar(table_count, len(self.precomputed.all_tables), 50, 3, 5)
+        # exit(9)
+        #self._checkpoint(True)
+
+
 
     def _checkpoint(self, create_new):
         if SCHEMA_ONLY:
@@ -312,12 +434,15 @@ class LazyParser():
         for metta_string in self.current_typedef_set:
             self.current_output_file.write(metta_string)
             self.current_output_file.write("\n")
+        self.current_output_file.flush()
         for metta_string in self.current_node_set:
             self.current_output_file.write(metta_string)
             self.current_output_file.write("\n")
+        self.current_output_file.flush()
         for metta_string in self.current_link_list:
             self.current_output_file.write(metta_string)
             self.current_output_file.write("\n")
+        self.current_output_file.flush()
         self.current_node_set = set()
         self.current_typedef_set = set()
         self.current_link_list = []
@@ -342,8 +467,8 @@ class LazyParser():
         # they don't exist for querying!
         if full_name.startswith("public."):
             self.table_schema[full_name] = parsed[0]
-            #saulo
-            #print("table inserted in schema : " + full_name)# +"\n"+str(parsed[0]))
+            # saulo
+            # print("table inserted in schema : " + full_name)# +"\n"+str(parsed[0]))
             assert len(parsed[0]['primary_key']) <= 1
             '''
             parsed[0]['primary_key'] = None
@@ -364,8 +489,8 @@ class LazyParser():
 
     def _start_copy(self, line):
         self.current_table = line.split(" ")[1]
-        if SCHEMA_ONLY or self.current_table in self.discarded_tables or\
-           (self.relevant_tables is not None and self.current_table not in self.relevant_tables):
+        if SCHEMA_ONLY or self.current_table in self.discarded_tables or \
+                (self.relevant_tables is not None and self.current_table not in self.relevant_tables):
             return False
         columns = line.split("(")[1].split(")")[0].split(",")
         columns = [s.strip() for s in columns]
@@ -377,7 +502,6 @@ class LazyParser():
         for name, ctype in zip(table['fields'], table['types']):
             self.current_field_types[name] = ctype
         return True
-
 
     def _get_type(self, table_name, field):
         if table_name is not None:
@@ -403,32 +527,31 @@ class LazyParser():
         return tuple([quoted_canonical_node_name, f"(: {quoted_node_name} {node_type})"])
 
     def _add_node_to_internal_sets(self, quoted_canonical_node_name, node):
-        self.current_node_set.add(node)
+        if node not in self.current_node_set:
+            self.current_node_set.add(node)
         node_type = quoted_canonical_node_name.strip('"').split()[0]
         self.current_typedef_set.add(f"(: {node_type} Type)")
         self.expression_chunk_count += 1
 
     def _add_node(self, node_type, node_name):
         # metta
-        #print(f"add_node {node_type} {node_name}")
+        # print(f"add_node {node_type} {node_name}")
         quoted_canonical_node_name, node = self._build_node(node_type, node_name)
         self._add_node_to_internal_sets(quoted_canonical_node_name, node)
         return quoted_canonical_node_name
 
     def _add_inheritance(self, node1, node2):
         # metta
-        #print(f"add_inheritance {node1} {node2}")
+        # print(f"add_inheritance {node1} {node2}")
         if node1 and node2:
             # saulo
             link = f"({AtomTypes.INHERITANCE} {node1} {node2})"
             if link not in self.current_link_list:
                 self.current_link_list.append(link)
-            #self.current_link_list.append(f"({AtomTypes.INHERITANCE} {node1} {node2})")
+            # self.current_link_list.append(f"({AtomTypes.INHERITANCE} {node1} {node2})")
         self.expression_chunk_count += 1
 
-
-
-    #def _add_evaluation(self, predicate, node1, node2):
+    # def _add_evaluation(self, predicate, node1, node2):
     #    # metta
     #    #print(f"add_evaluation {predicate} {node1} {node2}")
     #    if predicate and node1 and node2:
@@ -437,14 +560,13 @@ class LazyParser():
 
     def _add_execution(self, schema, node1, node2):
         # metta
-        #print(f"add_execution {schema} {node1} {node2}")
+        # print(f"add_execution {schema} {node1} {node2}")
         if schema and node1 and node2:
             self.current_link_list.append(f"({AtomTypes.EXECUTION} {schema} {node1} {node2})")
         self.expression_chunk_count += 1
 
-
     def _add_value_node(self, table_short_name, field_type, value, build_only=False):
-        if value == "\\N":      #  null for PostgreSQL
+        if value == "\\N":  # null for PostgreSQL
             return None
         if field_type == "pk":
             assert table_short_name is not None
@@ -479,7 +601,8 @@ class LazyParser():
         fkeys = table['foreign_keys']
         data = line.split("\t")
         if len(self.current_table_header) != len(data):
-            self._error(f"Invalid row at line {self.line_count} Table: {self.current_table} Header: {self.current_table_header} Raw line: <{line}>")
+            self._error(
+                f"Invalid row at line {self.line_count} Table: {self.current_table} Header: {self.current_table_header} Raw line: <{line}>")
             return
         for name, value in zip(self.current_table_header, data):
             if (not non_mapped_column(name)) and (name not in fkeys):
@@ -492,10 +615,11 @@ class LazyParser():
         table_short_name = short_name(self.current_table)
         pkey = table['primary_key']
         fkeys = table['foreign_keys']
-        assert pkey,f"self.current_table = {self.current_table} pkey = {pkey} \n{table}"
+        assert pkey, f"self.current_table = {self.current_table} pkey = {pkey} \n{table}"
         data = line.split("\t")
         if len(self.current_table_header) != len(data):
-            self._error(f"Invalid row at line {self.line_count} Table: {self.current_table} Header: {self.current_table_header} Raw line: <{line}>")
+            self._error(
+                f"Invalid row at line {self.line_count} Table: {self.current_table} Header: {self.current_table_header} Raw line: <{line}>")
             return
         pkey_node = None
         for name, value in zip(self.current_table_header, data):
@@ -526,14 +650,15 @@ class LazyParser():
     def _new_row(self, line):
         if SCHEMA_ONLY or (self.relevant_tables is not None and self.current_table not in self.relevant_tables):
             return
-        table = self.table_schema[self.current_table]           # sql table
+        table = self.table_schema[self.current_table]  # sql table
         table_short_name = short_name(self.current_table)
         pkey = table['primary_key']
         fkeys = table['foreign_keys']
-        assert pkey,f"self.current_table = {self.current_table} pkey = {pkey} \n{table}"
+        assert pkey, f"self.current_table = {self.current_table} pkey = {pkey} \n{table}"
         data = line.split("\t")
         if len(self.current_table_header) != len(data):
-            self._error(f"Invalid row at line {self.line_count} Table: {self.current_table} Header: {self.current_table_header} Raw line: <{line}>")
+            self._error(
+                f"Invalid row at line {self.line_count} Table: {self.current_table} Header: {self.current_table_header} Raw line: <{line}>")
             return
         relevant_row = False
         for name, value in zip(self.current_table_header, data):
@@ -561,7 +686,7 @@ class LazyParser():
             if name in fkeys:
                 referenced_table, referenced_field = table['foreign_key'][name]
                 if not SKIP_FKEY_FOLLOWING:
-                    if referenced_table not in self.relevant_fkeys:     # stores relevant foreign keys
+                    if referenced_table not in self.relevant_fkeys:  # stores relevant foreign keys
                         self.relevant_fkeys[referenced_table] = set()
                     self.relevant_fkeys[referenced_table].add(value)
                 schema_node = self._add_node(AtomTypes.SCHEMA, _compose_name([referenced_table]))
@@ -591,7 +716,7 @@ class LazyParser():
                 if self.precomputed:
                     self.precomputed.set_sql_primary_key(table, field)
         except Exception as e:
-            print("\nPK-->"+str(e) + "PPK -- table: " + table + " PK: " + str(self.table_schema[table]))
+            print("\nPK-->" + str(e) + "PPK -- table: " + table + " PK: " + str(self.table_schema[table]))
 
     def _foreign_key(self, first_line, second_line):
         try:
@@ -609,12 +734,9 @@ class LazyParser():
                 self.table_schema[table]['foreign_key'][field] = tuple([referenced_table, referenced_field])
                 self.table_schema[table]['foreign_keys'].append(field)
         except Exception as e:
-            print("\nFK-->"+str(e) + "     FK -- table: " + table + " FK: " + str(self.table_schema[table]))
+            print("\nFK-->" + str(e) + "     FK -- table: " + table + " FK: " + str(self.table_schema[table]))
 
     def _parse_step_1(self):
-        if CODING_NO_SQL_STUFF:
-            print("\nDev mode: no SQL data...")
-            return
         print("\nStep 1: " + str(datetime.now()))
         text = ""
         self.line_count = 0
@@ -653,23 +775,17 @@ class LazyParser():
                 line = file.readline()
 
     def _parse_step_2(self):
-        #  saulo
-        if CODING_NO_SQL_STUFF:
-            print("\nDev mode: no SQL data...")
-            #self._emit_precomputed_tables(self.current_output_file)
-            self._emit_precomputed_tables()
-            return
         print("\nStep 2: " + str(datetime.now()))
         text = ""
         self.line_count = 0
         file_size = FILE_SIZE
 
         # tables without primary key are discarded.
-        for key,table in self.table_schema.items():
+        for key, table in self.table_schema.items():
             if not table['primary_key']:
                 self.discarded_tables.append(key)
                 self._error(f"Discarded table {key}. No PRIMARY KEY defined.")
-                
+
         state = State.WAIT_KNOWN_COMMAND
         with open(self.sql_file_name, 'r') as file:
             line = file.readline()
@@ -701,9 +817,9 @@ class LazyParser():
             if PRINT_PRECOMPUTED_NEAR_MATCHES:
                 self.precomputed.print_matched_tables()
             #  saulo
-            #self._emit_precomputed_tables(self.current_output_file)
+            # self._emit_precomputed_tables(self.current_output_file)
             self._emit_precomputed_tables()
-            #self._checkpoint(True)
+            # self._checkpoint(True)
         self.relevant_tables = self.precomputed.get_relevant_sql_tables()
 
     def _parse_step_3(self):
@@ -717,14 +833,14 @@ class LazyParser():
                 if not table['primary_key']:
                     self.discarded_tables.append(key)
                     self._error(f"Discarded table {key}. No PRIMARY KEY defined.")
-                
+
         state = State.WAIT_KNOWN_COMMAND
         with open(self.sql_file_name, 'r') as file:
             line = file.readline()
             while line:
                 self.line_count += 1
-                #if self.expression_chunk_count >= EXPRESSIONS_PER_CHUNK:
-                #    self._checkpoint(True)
+                # if self.expression_chunk_count >= EXPRESSIONS_PER_CHUNK:
+                # self._checkpoint(True)
                 if SHOW_PROGRESS:
                     self._print_progress_bar(self.line_count, file_size, 50, 4, 5)
                 line = line.replace('\n', '').strip()
@@ -742,7 +858,7 @@ class LazyParser():
                     print(f"Invalid state {state}")
                     assert False
                 line = file.readline()
-            #self._checkpoint(False)
+            # self._checkpoint(False)
 
     def _parse_step_4(self):
         print("\nStep 4: " + str(datetime.now()))
@@ -751,18 +867,18 @@ class LazyParser():
         file_size = FILE_SIZE
 
         if not self.precomputed:
-            for key,table in self.table_schema.items():
+            for key, table in self.table_schema.items():
                 if not table['primary_key']:
                     self.discarded_tables.append(key)
                     self._error(f"Discarded table {key}. No PRIMARY KEY defined.")
-                
+
         state = State.WAIT_KNOWN_COMMAND
         with open(self.sql_file_name, 'r') as file:
             line = file.readline()
             while line:
                 self.line_count += 1
-                #if self.expression_chunk_count >= EXPRESSIONS_PER_CHUNK:
-                #    self._checkpoint(True)
+                # if self.expression_chunk_count >= EXPRESSIONS_PER_CHUNK:
+                # self._checkpoint(True)
                 if SHOW_PROGRESS:
                     self._print_progress_bar(self.line_count, file_size, 50, 5, 5)
                 line = line.replace('\n', '').strip()
@@ -780,7 +896,7 @@ class LazyParser():
                     print(f"Invalid state {state}")
                     assert False
                 line = file.readline()
-            #self._checkpoint(False)
+            # self._checkpoint(False)
             print("\nStep 4 finished: " + str(datetime.now()))
 
     def parse(self):
@@ -806,10 +922,12 @@ class LazyParser():
         self._checkpoint(False)
         self._tear_down()
 
+
 def main():
     precomputed = PrecomputedTables(PRECOMPUTED_DIR, "2023_04") if PRECOMPUTED_DIR else None
     parser = LazyParser(SQL_FILE, precomputed)
     parser.parse()
+
 
 if __name__ == "__main__":
     main()

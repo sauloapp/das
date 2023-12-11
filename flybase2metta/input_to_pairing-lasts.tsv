@@ -1,0 +1,3 @@
+disease_model_annotations	FBgn ID	Gene symbol	HGNC ID	DO qualifier	DO ID	Allele used in model (FBal ID)	Allele used in model (symbol)	Based on orthology with (HGNC ID)	Based on orthology with (symbol)	Evidence/interacting alleles	Reference (FBrf ID)			
+fbal_to_fbgn	AlleleID	AlleleSymbol	GeneID	GeneSymbol										
+gene_association	DB	DB_Object_ID	DB_Object_Symbol	Qualifier	GO ID	DB:Reference	Evidence	With (or) From	DB_Object_Name	DB_Object_Synonym	DB_Object_Type	Taxon	Date	Assigned_by
